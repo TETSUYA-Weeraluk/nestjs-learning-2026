@@ -1,12 +1,20 @@
 import { applyDecorators, SetMetadata, UseGuards } from '@nestjs/common';
-import { ApiUnauthorizedResponse } from '@nestjs/swagger';
-import { ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiForbiddenResponse,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
+import { USER_ROLE } from 'src/generated/prisma/enums';
+import { RolesGuard } from '../guard/roles.guard';
 
-// export function Auth(...roles: string[]) {
-//   return applyDecorators(
-//     SetMetadata('roles', roles),
-//     UseGuards(AuthGuard, RolesGuard),
-//     ApiBearerAuth(),
-//     ApiUnauthorizedResponse({ description: 'Unauthorized' }),
-//   );
-// }
+export const ROLES_KEY = 'roles';
+
+export function Auth(...roles: USER_ROLE[]) {
+  return applyDecorators(
+    SetMetadata(ROLES_KEY, roles),
+    UseGuards(RolesGuard),
+    ApiBearerAuth(),
+    ApiUnauthorizedResponse({ description: 'Unauthorized' }),
+    ApiForbiddenResponse({ description: 'Forbidden' }),
+  );
+}

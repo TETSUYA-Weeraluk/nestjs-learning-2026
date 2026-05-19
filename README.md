@@ -1,98 +1,309 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# NestJS Learning 2026
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+REST API สำหรับเรียนรู้ NestJS แบบ production-ready ใช้ Feature-based module, Prisma ORM, JWT Authentication พร้อม Refresh Token และ Role-Based Access Control (RBAC)
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Tech Stack
 
-## Description
+| หมวด | เทคโนโลยี |
+|------|-----------|
+| Framework | [NestJS 11](https://nestjs.com/) + TypeScript |
+| Database | PostgreSQL 17 |
+| ORM | [Prisma 7](https://www.prisma.io/) |
+| Validation | [Zod](https://zod.dev/) + [nestjs-zod](https://github.com/BenLorantfy/nestjs-zod) |
+| Auth | JWT + Passport.js + bcrypt |
+| API Docs | Swagger (`/api`) |
+| Security | Helmet |
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Features
 
-## Project setup
+- **Authentication** — Login, Refresh Token (rotation), Logout
+- **Authorization** — Global JWT Guard + Role Guard (`USER`, `ADMIN`, `MANAGER`)
+- **Public API** — Decorator `@Public()` สำหรับ route ที่ไม่ต้อง auth
+- **User Management** — Register, CRUD, Soft delete, Pagination
+- **Global Exception Filter** — Error response รูปแบบเดียวกันทั้ง API
+- **Docker** — PostgreSQL ผ่าน Docker Compose
 
-```bash
-$ pnpm install
+## Project Structure
+
+```
+src/
+├── auth/                    # Authentication (login, refresh, logout)
+│   ├── dto/
+│   ├── strategies/          # Passport JWT Strategy
+│   ├── auth.controller.ts
+│   ├── auth.service.ts
+│   └── auth.module.ts
+├── common/
+│   ├── config/              # Configuration, Exception Filter
+│   ├── decorators/          # @Public(), @Auth(), @CurrentUser()
+│   ├── dto/                 # Shared DTOs (pagination)
+│   ├── guard/               # JwtAuthGuard, RolesGuard
+│   ├── prisma/              # PrismaService (Global)
+│   ├── schemas/             # Zod base schemas
+│   ├── types/
+│   └── utils/
+├── features/
+│   ├── user/                # User feature module
+│   └── post/                # Post feature module (stub)
+├── generated/prisma/        # Prisma Client (auto-generated)
+├── app.module.ts
+└── main.ts
+prisma/
+├── schema.prisma
+└── migrations/
 ```
 
-## Compile and run the project
+## Prerequisites
+
+- [Node.js](https://nodejs.org/) >= 20
+- [pnpm](https://pnpm.io/)
+- [Docker](https://www.docker.com/) (สำหรับ PostgreSQL)
+
+## Getting Started
+
+### 1. Clone & Install
 
 ```bash
-# development
-$ pnpm run start
-
-# watch mode
-$ pnpm run start:dev
-
-# production mode
-$ pnpm run start:prod
+git clone <repository-url>
+cd nestjs-learning-2026
+pnpm install
 ```
 
-## Run tests
+### 2. Environment Variables
+
+สร้างไฟล์ `.env` จาก template ด้านล่าง:
+
+```env
+# Database
+DATABASE_URL="postgresql://admin:admin@localhost:5432/nestjs2026-learning"
+DB_USER="admin"
+DB_PASSWORD="admin"
+DB_NAME="nestjs2026-learning"
+DB_HOST="localhost"
+DB_PORT="5432"
+
+# JWT
+JWT_SECRET=your-super-secret-key
+JWT_EXPIRES_IN=1h
+JWT_REFRESH_EXPIRES_IN=7d
+
+# App
+PORT=5555
+```
+
+### 3. Start Database
 
 ```bash
-# unit tests
-$ pnpm run test
-
-# e2e tests
-$ pnpm run test:e2e
-
-# test coverage
-$ pnpm run test:cov
+docker compose up -d
 ```
 
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+### 4. Database Migration
 
 ```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
+# ใช้ migration (แนะนำสำหรับ production)
+npx prisma migrate dev
+
+# หรือ sync schema โดยตรง (development)
+npx prisma db push
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+### 5. Run Application
 
-## Resources
+```bash
+# Development (watch mode)
+pnpm run start:dev
 
-Check out a few resources that may come in handy when working with NestJS:
+# Production
+pnpm run build
+pnpm run start:prod
+```
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+Server จะรันที่ `http://localhost:5555`
 
-## Support
+Swagger UI: `http://localhost:5555/api`
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+## Scripts
 
-## Stay in touch
+| คำสั่ง | คำอธิบาย |
+|--------|----------|
+| `pnpm run start:dev` | รัน dev server (hot reload) |
+| `pnpm run build` | Build โปรเจกต์ |
+| `pnpm run start:prod` | รัน production build |
+| `pnpm run lint` | ตรวจ ESLint |
+| `pnpm run test` | Unit tests |
+| `pnpm run test:e2e` | E2E tests |
+| `pnpm run test:cov` | Test coverage |
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+## Authentication
+
+### Flow
+
+```
+Login  → access_token (สั้น) + refresh_token (ยาว)
+Refresh → แลก token คู่ใหม่ (rotation — revoke token เก่าทันที)
+Logout → revoke refresh_token
+```
+
+Refresh token ถูก hash (SHA-256) ก่อนเก็บใน database ไม่เก็บ plain text
+
+### Endpoints
+
+| Method | Path | Auth | คำอธิบาย |
+|--------|------|------|----------|
+| `POST` | `/auth/login` | Public | Login |
+| `POST` | `/auth/refresh` | Public | Refresh token |
+| `POST` | `/auth/logout` | Public | Logout (revoke refresh token) |
+| `GET` | `/auth/me` | Bearer | ดู profile ตัวเอง |
+
+### ตัวอย่าง
+
+**Login**
+
+```bash
+curl -X POST http://localhost:5555/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com", "password": "password123"}'
+```
+
+```json
+{
+  "access_token": "eyJhbG...",
+  "refresh_token": "a1b2c3...",
+  "user": {
+    "id": "uuid",
+    "email": "user@example.com",
+    "first_name": "John",
+    "last_name": "Doe",
+    "role": "USER"
+  }
+}
+```
+
+**เรียก Protected API**
+
+```bash
+curl http://localhost:5555/auth/me \
+  -H "Authorization: Bearer <access_token>"
+```
+
+**Refresh Token**
+
+```bash
+curl -X POST http://localhost:5555/auth/refresh \
+  -H "Content-Type: application/json" \
+  -d '{"refresh_token": "<refresh_token>"}'
+```
+
+**Logout**
+
+```bash
+curl -X POST http://localhost:5555/auth/logout \
+  -H "Content-Type: application/json" \
+  -d '{"refresh_token": "<refresh_token>"}'
+```
+
+## API Endpoints
+
+### User
+
+| Method | Path | Auth | Role | คำอธิบาย |
+|--------|------|------|------|----------|
+| `POST` | `/user` | Public | — | Register user |
+| `GET` | `/user` | Bearer | ADMIN, MANAGER | List users (pagination) |
+| `GET` | `/user/:id` | Bearer | — | Get user by ID |
+| `PATCH` | `/user/:id` | Bearer | — | Update user |
+| `DELETE` | `/user/:id` | Bearer | — | Soft delete user |
+
+### Pagination Query Params
+
+```
+GET /user?page=1&limit=10&search=john&sortBy=created_at&sortOrder=desc
+```
+
+| Param | Type | Default | คำอธิบาย |
+|-------|------|---------|----------|
+| `page` | number | `1` | หน้าที่ต้องการ |
+| `limit` | number | `10` | จำนวนต่อหน้า |
+| `search` | string | — | ค้นหาใน first_name, last_name, email |
+| `sortBy` | string | `created_at` | ฟิลด์ที่ sort ได้ |
+| `sortOrder` | `asc` \| `desc` | `desc` | ทิศทาง sort |
+
+## Decorators
+
+### `@Public()`
+
+ข้าม JWT Guard สำหรับ route ที่ไม่ต้อง authentication
+
+```typescript
+@Public()
+@Get('health')
+healthCheck() {
+  return { status: 'ok' };
+}
+```
+
+### `@Auth(...roles)`
+
+กำหนด role ที่เข้าถึงได้ (ใช้ร่วมกับ Global JWT Guard)
+
+```typescript
+@Auth(USER_ROLE.ADMIN, USER_ROLE.MANAGER)
+@Get()
+findAll() { ... }
+```
+
+### `@CurrentUser()`
+
+ดึง user จาก JWT payload ใน request
+
+```typescript
+@Get('me')
+getProfile(@CurrentUser() user: AuthenticatedUser) {
+  return user;
+}
+```
+
+## Database Schema
+
+```
+User ──┬── Address (1:1)
+       ├── Post (1:N)
+       └── RefreshToken (1:N)
+
+USER_ROLE: USER | ADMIN | MANAGER
+```
+
+- User ใช้ **soft delete** ผ่านฟิลด์ `deleted_at`
+- Password hash ด้วย **bcrypt** (salt rounds: 10)
+
+## Environment Variables Reference
+
+| Variable | Required | Default | คำอธิบาย |
+|----------|----------|---------|----------|
+| `DATABASE_URL` | ✅ | — | PostgreSQL connection string |
+| `DB_USER` | — | — | ใช้กับ Docker Compose |
+| `DB_PASSWORD` | — | — | ใช้กับ Docker Compose |
+| `DB_NAME` | — | — | ใช้กับ Docker Compose |
+| `DB_HOST` | — | `localhost` | Database host |
+| `DB_PORT` | — | `5432` | Database port |
+| `JWT_SECRET` | ✅ | — | Secret สำหรับ sign JWT |
+| `JWT_EXPIRES_IN` | — | `1h` | อายุ access token |
+| `JWT_REFRESH_EXPIRES_IN` | — | `7d` | อายุ refresh token |
+| `PORT` | — | `5555` | Port ของ API server |
+
+## Prisma Commands
+
+```bash
+# เปิด Prisma Studio (GUI จัดการ DB)
+npx prisma studio
+
+# สร้าง migration ใหม่
+npx prisma migrate dev --name <migration_name>
+
+# Generate Prisma Client หลังแก้ schema
+npx prisma generate
+```
 
 ## License
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+UNLICENSED — Private project

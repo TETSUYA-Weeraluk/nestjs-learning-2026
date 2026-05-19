@@ -20,18 +20,32 @@ enum USER_ROLE {
 }
 
 model User {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  first_name    String
+  last_name     String
+  password      String
+  role          USER_ROLE
+  isActive      Boolean
+  deleted_at    DateTime?
+  created_at    DateTime       @default(now())
+  updated_at    DateTime       @updatedAt
+  posts         Post[]
+  address       Address?
+  refreshTokens RefreshToken[]
+}
+
+model RefreshToken {
   id         String    @id @default(uuid())
-  email      String    @unique
-  first_name String
-  last_name  String
-  password   String
-  role       USER_ROLE
-  isActive   Boolean
-  deleted_at DateTime?
+  tokenHash  String    @unique
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime
+  revoked_at DateTime?
   created_at DateTime  @default(now())
-  updated_at DateTime  @updatedAt
-  posts      Post[]
-  address    Address?
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 model Address {

@@ -11,6 +11,7 @@ async function bootstrap() {
     .setTitle('My Project API')
     .setDescription('รายละเอียด API สำหรับโปรเจกต์ของฉัน')
     .setVersion('1.0')
+    .addBearerAuth()
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
@@ -18,4 +19,4 @@ async function bootstrap() {
 
   await app.listen(process.env.PORT ?? 5555);
 }
-bootstrap();
+void bootstrap();

@@ -31,7 +31,7 @@ model User {
   created_at DateTime  @default(now())
   updated_at DateTime  @updatedAt
   posts      Post[]
-  addresses  Address?
+  address    Address?
 }
 
 model Address {
@@ -44,6 +44,7 @@ model Address {
   user_id    String   @unique
   user       User     @relation(fields: [user_id], references: [id])
   created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
 }
 
 model Post {

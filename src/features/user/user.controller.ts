@@ -10,12 +10,15 @@ import {
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { ZodSerializerDto } from 'nestjs-zod';
+import { UserResponseDto } from './dto/response-user.dto';
 
 @Controller('user')
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
   @Post()
+  @ZodSerializerDto(UserResponseDto)
   create(@Body() createUserDto: CreateUserDto) {
     return this.userService.register(createUserDto);
   }

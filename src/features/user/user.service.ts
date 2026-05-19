@@ -9,7 +9,6 @@ export class UserService {
   constructor(private readonly prisma: PrismaService) {}
 
   async register(createUserDto: CreateUserDto) {
-    console.log('createUserDto', createUserDto);
     const isExit = await this.prisma.user.findUnique({
       where: {
         email: createUserDto.email,
@@ -22,9 +21,24 @@ export class UserService {
 
     const passwordHash = await hashPassword(createUserDto.password);
 
-    console.log('passwordHash', passwordHash);
+    const user = await this.prisma.user.create({
+      data: {
+        email: createUserDto.email,
+        first_name: createUserDto.first_name,
+        last_name: createUserDto.last_name,
+        role: createUserDto.role,
+        isActive: createUserDto.isActive,
+        address: {
+          create: createUserDto.address,
+        },
+        password: passwordHash,
+      },
+      include: {
+        address: true,
+      },
+    });
 
-    return 'This action adds a new user';
+    return user;
   }
 
   findAll() {

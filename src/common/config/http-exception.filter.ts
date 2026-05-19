@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/client';
 import { Response } from 'express';
 import { ZodValidationException } from 'nestjs-zod';
 import { ZodError } from 'zod/v3';
@@ -34,7 +35,6 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
 
-    // 3. เปลี่ยนมาใช้ Type รวมที่เรากำหนดไว้ข้างบน
     let message: FilterMessageType = 'Internal server error';
 
     if (exception instanceof HttpException) {
@@ -56,6 +56,16 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         }
       } else if (typeof errorResponse === 'string') {
         message = errorResponse;
+      }
+    } else if (exception instanceof PrismaClientKnownRequestError) {
+      if (exception.code === 'P2025') {
+        status = HttpStatus.NOT_FOUND;
+        message = 'ไม่พบข้อมูลที่ต้องการ หรือข้อมูลนี้ถูกลบไปแล้ว';
+      } else {
+        message = `Database error: ${exception.code}`;
+        this.logger.error(
+          `[Prisma Error] ${exception.code}: ${exception.message}`,
+        );
       }
     } else {
       this.logger.error(

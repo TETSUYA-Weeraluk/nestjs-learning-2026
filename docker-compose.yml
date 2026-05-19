@@ -1,0 +1,44 @@
+services:
+  db:
+    image: postgres:17.10-bookworm
+    container_name: nestjs2026_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "${DB_PORT}:${DB_PORT}"
+    volumes:
+      - postgres_data_nestjs2026:/var/lib/postgresql/data
+
+    # # ✅ ตรวจสอบว่า DB พร้อมใช้งานจริงหรือยังก่อนให้แอปอื่นเรียก
+    # healthcheck:
+    #   test:
+    #     [
+    #       "CMD-SHELL",
+    #       "pg_isready -U ${DB_USER:-admin} -d ${DB_NAME:-nestjs2026-learning}",
+    #     ]
+    #   interval: 5s
+    #   timeout: 5s
+    #   retries: 5
+
+  # # ✅ เพิ่ม Service สำหรับแอป NestJS ของคุณ
+  # api:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   container_name: nestjs2026_api
+  #   restart: always
+  #   ports:
+  #     - "5555:5555"
+  #   environment:
+  #     PORT: 5555
+  #     # ส่งแปรไปยัง Prisma / ORM เพื่อต่อเข้ากับ Service 'db' ภายในเน็ตเวิร์กของ Docker
+  #     DATABASE_URL: postgresql://${DB_USER:-admin}:${DB_PASSWORD:-admin}@db:5432/${DB_NAME:-nestjs2026-learning}?schema=public
+  #   depends_on:
+  #     db:
+  #       condition: service_healthy # ✅ รอให้ db ผ่านการตรวจ Healthcheck ก่อน แอปถึงจะเริ่มรัน
+
+volumes:
+  postgres_data_nestjs2026:

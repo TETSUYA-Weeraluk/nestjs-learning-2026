@@ -3,6 +3,8 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { PrismaService } from 'src/common/prisma/prisma.service';
 import { hashPassword } from 'src/auth/hash-password';
+import { PaginationQueryDto } from 'src/common/dto/pagination-query.dto';
+import { prismaPaginate } from 'src/common/utils/prisma-paginate.util';
 
 @Injectable()
 export class UserService {
@@ -41,8 +43,15 @@ export class UserService {
     return user;
   }
 
-  findAll() {
-    return `This action returns all user`;
+  async findAll(query: PaginationQueryDto) {
+    return prismaPaginate(this.prisma.user, query, {
+      searchFields: ['first_name', 'last_name', 'email'],
+      allowedSortFields: ['first_name', 'last_name', 'email', 'created_at'],
+      include: { address: true },
+      where: {
+        deleted_at: null,
+      },
+    });
   }
 
   findOne(id: number) {

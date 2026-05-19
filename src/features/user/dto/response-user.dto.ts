@@ -1,4 +1,5 @@
 import { createZodDto } from 'nestjs-zod';
+import { createPaginatedResponseDto } from 'src/common/dto/paginated-response.dto';
 import { baseSchema } from 'src/common/schemas/base.schema';
 import { USER_ROLE } from 'src/generated/prisma/enums';
 import z from 'zod/v3';
@@ -26,5 +27,8 @@ const UserResponseSchema = baseSchema.extend({
 });
 
 export class UserResponseDto extends createZodDto(UserResponseSchema) {}
+
+export const FindAllUserResponseDto =
+  createPaginatedResponseDto(UserResponseSchema);
 
 export type UserResponse = z.infer<typeof UserResponseSchema>;

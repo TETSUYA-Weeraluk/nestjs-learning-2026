@@ -6,12 +6,17 @@ import {
   Patch,
   Param,
   Delete,
+  Query,
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ZodSerializerDto } from 'nestjs-zod';
-import { UserResponseDto } from './dto/response-user.dto';
+import {
+  FindAllUserResponseDto,
+  UserResponseDto,
+} from './dto/response-user.dto';
+import { PaginationQueryDto } from 'src/common/dto/pagination-query.dto';
 
 @Controller('user')
 export class UserController {
@@ -24,8 +29,9 @@ export class UserController {
   }
 
   @Get()
-  findAll() {
-    return this.userService.findAll();
+  @ZodSerializerDto(FindAllUserResponseDto)
+  findAll(@Query() query: PaginationQueryDto) {
+    return this.userService.findAll(query);
   }
 
   @Get(':id')

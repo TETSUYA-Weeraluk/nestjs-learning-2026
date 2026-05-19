@@ -14,7 +14,7 @@ async function bootstrap() {
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api', app, document); // เข้าใช้งานผ่าน http://localhost:3000/api
+  SwaggerModule.setup('api', app, document);
 
   await app.listen(process.env.PORT ?? 5555);
 }

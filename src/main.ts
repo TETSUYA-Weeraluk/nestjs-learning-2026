@@ -26,8 +26,8 @@ async function bootstrap() {
   app.use(helmet());
 
   const config = new DocumentBuilder()
-    .setTitle('My Project API')
-    .setDescription('รายละเอียด API สำหรับโปรเจกต์ของฉัน')
+    .setTitle('Name API for new project')
+    .setDescription('Description for new project')
     .setVersion('1.0')
     .addBearerAuth()
     .build();

@@ -10,6 +10,7 @@ REST API สำหรับเรียนรู้ NestJS แบบ production-
 
 - [Tech Stack](#tech-stack)
 - [Features](#features)
+- [Fork โปรเจกต์ใหม่](FORK.md)
 - [สำหรับผู้เริ่มต้น NestJS](#สำหรับผู้เริ่มต้น-nestjs)
 - [Request Lifecycle](#request-lifecycle-ลำดับการทำงานของ-request)
 - [Authentication & Authorization Flow](#authentication--authorization-flow)
@@ -48,6 +49,7 @@ REST API สำหรับเรียนรู้ NestJS แบบ production-
 - **Global Exception Filter** — Error response รูปแบบเดียวกันทั้ง API
 - **HTTP Request Logging** — log method, path, status, duration
 - **Docker** — PostgreSQL ผ่าน Docker Compose
+- **Fork-ready** — [FORK.md](./FORK.md) checklist + `pnpm run db:setup` สำหรับ setup หลัง fork
 
 ---
 
@@ -275,6 +277,8 @@ prisma/
 
 ## Getting Started
 
+> **Fork จาก repo นี้ไปโปรเจกต์ใหม่?** ดู checklist ที่ **[FORK.md](./FORK.md)** (เปลี่ยน `JWT_SECRET`, ชื่อ DB, seed, Swagger title ฯลฯ)
+
 ### Prerequisites
 
 - [Node.js](https://nodejs.org/) >= 20
@@ -291,46 +295,35 @@ pnpm install
 
 ### 2. Environment Variables
 
-สร้างไฟล์ `.env` ที่ root โปรเจกต์:
-
-```env
-# Database
-DATABASE_URL="postgresql://admin:admin@localhost:5432/nestjs2026-learning"
-DB_USER="admin"
-DB_PASSWORD="admin"
-DB_NAME="nestjs2026-learning"
-DB_HOST="localhost"
-DB_PORT="5432"
-
-# JWT
-JWT_SECRET=your-super-secret-key-change-in-production
-JWT_EXPIRES_IN=1h
-JWT_REFRESH_EXPIRES_IN=7d
-
-# App
-PORT=5555
+```bash
+cp .env.example .env
 ```
 
-### 3. Start Database
+แก้ค่าใน `.env` ให้ตรงกับโปรเจกต์ — โดยเฉพาะ `JWT_SECRET` และ `DATABASE_URL` / `DB_*` (รายละเอียดตัวแปรดูที่ [Environment Variables](#environment-variables-reference))
+
+### 3. Database (ครั้งแรก)
+
+**แบบรวดเดียว** — เปิด PostgreSQL, apply migrations, seed:
 
 ```bash
-docker compose up -d
+pnpm run db:setup
 ```
 
-### 4. Database Migration
+คำสั่งนี้รัน `db:up` → รอ DB พร้อม → `db:migrate` → `db:seed`
+
+**แบบแยกขั้น** (ถ้าต้องการควบคุมเอง):
 
 ```bash
-# ใช้ migration (แนะนำ)
-npx prisma migrate dev
+pnpm run db:up          # docker compose up -d
+pnpm run db:migrate     # prisma migrate deploy
+pnpm run db:seed        # ข้อมูลตัวอย่าง dev
+```
 
-# หรือ sync schema โดยตรง (development เท่านั้น)
-npx prisma db push
+เมื่อแก้ `prisma/schema.prisma` แล้วต้องการสร้าง migration ใหม่ (development):
 
-# generate client หลังแก้ schema
+```bash
+npx prisma migrate dev --name <migration_name>
 npx prisma generate
-
-# ใส่ข้อมูลตัวอย่าง (ผู้ใช้ 5 คน รวม ADMIN สำหรับ dev)
-pnpm run db:seed
 ```
 
 หลัง seed สามารถ login ได้ทันที (รันซ้ำได้ — จะลบแล้วสร้างผู้ใช้ชุดเดิมใหม่):
@@ -343,7 +336,7 @@ pnpm run db:seed
 | `alex.wong@example.com` | `password123` | USER |
 | `maria.garcia@example.com` | `password123` | USER |
 
-### 5. Run Application
+### 4. Run Application
 
 ```bash
 # Development (watch mode)
@@ -553,6 +546,8 @@ USER_ROLE: USER | ADMIN | MANAGER
 
 ## Environment Variables Reference
 
+ตัวอย่างค่าทั้งหมดอยู่ใน [`.env.example`](./.env.example)
+
 | Variable | Required | Default | คำอธิบาย |
 |----------|----------|---------|----------|
 | `DATABASE_URL` | ✅ | — | PostgreSQL connection string |
@@ -574,7 +569,10 @@ USER_ROLE: USER | ADMIN | MANAGER
 # GUI จัดการ database
 npx prisma studio
 
-# สร้าง migration ใหม่
+# Apply migrations ที่มีอยู่แล้ว (ใช้ใน db:setup / CI)
+pnpm run db:migrate
+
+# สร้าง migration ใหม่หลังแก้ schema (development)
 npx prisma migrate dev --name <migration_name>
 
 # Generate client หลังแก้ schema
@@ -587,6 +585,10 @@ npx prisma generate
 
 | คำสั่ง | คำอธิบาย |
 |--------|----------|
+| `pnpm run db:setup` | เปิด DB + migrate + seed (setup ครั้งแรก) |
+| `pnpm run db:up` | เปิด PostgreSQL ผ่าน Docker Compose |
+| `pnpm run db:migrate` | Apply migrations (`prisma migrate deploy`) |
+| `pnpm run db:seed` | ใส่ข้อมูลตัวอย่าง (`prisma db seed`) |
 | `pnpm run start:dev` | Dev server (hot reload) |
 | `pnpm run build` | Build โปรเจกต์ |
 | `pnpm run start:prod` | รัน production build |

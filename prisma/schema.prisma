@@ -30,7 +30,6 @@ model User {
   deleted_at    DateTime?
   created_at    DateTime       @default(now())
   updated_at    DateTime       @updatedAt
-  posts         Post[]
   address       Address?
   refreshTokens RefreshToken[]
 }
@@ -59,17 +58,4 @@ model Address {
   user       User     @relation(fields: [user_id], references: [id])
   created_at DateTime @default(now())
   updated_at DateTime @default(now()) @updatedAt
-}
-
-model Post {
-  id         String    @id @default(uuid())
-  title      String
-  content    String
-  authorId   String
-  author     User      @relation(fields: [authorId], references: [id])
-  deleted_at DateTime?
-  created_at DateTime  @default(now())
-  updated_at DateTime  @updatedAt
-
-  @@index([authorId])
 }

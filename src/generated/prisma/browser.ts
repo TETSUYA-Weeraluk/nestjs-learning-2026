@@ -31,8 +31,3 @@ export type RefreshToken = Prisma.RefreshTokenModel
  * 
  */
 export type Address = Prisma.AddressModel
-/**
- * Model Post
- * 
- */
-export type Post = Prisma.PostModel

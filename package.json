@@ -1,10 +1,10 @@
 {
   "name": "nestjs2026",
   "version": "0.0.1",
-  "description": "",
+  "description": "NestJS base template with auth, Prisma, and RBAC",
   "author": "",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -18,10 +18,11 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
+    "postinstall": "prisma generate",
     "db:seed": "prisma db seed",
     "db:up": "docker compose up -d",
     "db:migrate": "prisma migrate deploy",
-    "db:setup": "pnpm run db:up && sleep 5 && pnpm run db:migrate && pnpm run db:seed"
+    "db:setup": "pnpm run db:up && sleep 5 && pnpm run db:migrate && pnpm run db:seed && pnpm run postinstall"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

@@ -668,4 +668,4 @@ npx prisma generate
 
 ## License
 
-UNLICENSED — Private project
+[MIT](./LICENSE) — ใช้ fork และแก้ไขได้อย่างอิสระ โดยต้องเก็บ copyright notice ไว้

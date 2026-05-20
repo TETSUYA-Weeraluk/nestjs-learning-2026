@@ -6,6 +6,7 @@
 
 - [ ] เปลี่ยนชื่อ repo / `package.json` → `name` (ถ้าต้องการ)
 - [ ] Copy `.env.example` → `.env` แล้วแก้ค่าทั้งหมด (อย่าใช้ค่า template ใน production)
+- [ ] แก้ copyright ใน `LICENSE` (ถ้า fork เป็น proprietary ให้เปลี่ยน license ทั้ง `LICENSE`, `package.json`, README)
 
 ## Environment (`.env`)
 
@@ -16,6 +17,8 @@
 | `DB_USER` / `DB_PASSWORD` | แนะนำ | ให้สอดคล้องกับ `DATABASE_URL` |
 | `DATABASE_URL` | ✅ | ต้องชี้ไปที่ DB ชื่อใหม่ (`postgresql://user:pass@host:port/dbname`) |
 | `PORT` | ตามต้องการ | default `5555` |
+| `CORS_ORIGIN` | ✅ (production) | บังคับใน production — ระบุ origin ของ frontend จริง |
+| `NODE_ENV` | ✅ (production) | ตั้งเป็น `production` |
 
 ## Docker
 

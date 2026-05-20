@@ -3,6 +3,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ConfigModule } from '@nestjs/config';
 import configuration from './common/config/configuration';
+import { validateEnv } from './common/config/env.schema';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
 import { GlobalExceptionFilter } from './common/config/http-exception.filter';
 import { UserModule } from './features/user/user.module';
@@ -16,6 +17,7 @@ import { RolesGuard } from './common/guard/roles.guard';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      validate: validateEnv,
       load: [configuration],
     }),
     UserModule,

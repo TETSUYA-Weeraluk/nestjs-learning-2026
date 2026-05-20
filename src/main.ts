@@ -1,4 +1,5 @@
 import { Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
@@ -7,7 +8,14 @@ import { NextFunction, Request, Response } from 'express';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const configService = app.get(ConfigService);
   const httpLogger = new Logger('HTTP');
+
+  app.enableCors({
+    origin: configService.getOrThrow<string[]>('cors.origins'),
+    credentials: configService.getOrThrow<boolean>('cors.credentials'),
+  });
+  app.enableShutdownHooks();
 
   app.use((req: Request, res: Response, next: NextFunction) => {
     const { method, originalUrl } = req;
@@ -35,6 +43,7 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
 
-  await app.listen(process.env.PORT ?? 5555);
+  const port = configService.getOrThrow<number>('port');
+  await app.listen(port);
 }
 void bootstrap();

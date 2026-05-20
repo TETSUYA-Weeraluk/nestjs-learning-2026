@@ -49,6 +49,9 @@ REST API สำหรับเรียนรู้ NestJS แบบ production-
 - **Global Exception Filter** — Error response รูปแบบเดียวกันทั้ง API
 - **HTTP Request Logging** — log method, path, status, duration
 - **Docker** — PostgreSQL ผ่าน Docker Compose
+- **CORS** — ตั้งค่าผ่าน `CORS_ORIGIN` (default localhost สำหรับ dev)
+- **Env validation** — ตรวจสอบตัวแปรสภาพแวดล้อมตอน boot (Zod, fail fast)
+- **Prisma lifecycle** — `$connect` / `$disconnect` ตาม module lifecycle
 - **Fork-ready** — [FORK.md](./FORK.md) checklist + `pnpm run db:setup` สำหรับ setup หลัง fork
 
 ---
@@ -560,6 +563,8 @@ USER_ROLE: USER | ADMIN | MANAGER
 | `JWT_EXPIRES_IN` | — | `1h` | อายุ access token |
 | `JWT_REFRESH_EXPIRES_IN` | — | `7d` | อายุ refresh token (`7d`, `24h`, `30m`) |
 | `PORT` | — | `5555` | Port ของ API server |
+| `NODE_ENV` | — | `development` | `development` \| `production` \| `test` |
+| `CORS_ORIGIN` | production | — | Allowed origins คั่นด้วย comma (บังคับใน production) |
 
 ---
 

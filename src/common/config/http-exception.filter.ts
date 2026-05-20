@@ -62,7 +62,11 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       if (exception.code === 'P2025') {
         status = HttpStatus.NOT_FOUND;
         message = 'ไม่พบข้อมูลที่ต้องการ หรือข้อมูลนี้ถูกลบไปแล้ว';
+      } else if (exception.code === 'P2002') {
+        status = HttpStatus.CONFLICT;
+        message = this.formatUniqueConstraintMessage(exception);
       } else {
+        status = HttpStatus.INTERNAL_SERVER_ERROR;
         message = `Database error: ${exception.code}`;
       }
     }
@@ -73,7 +77,18 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       statusCode: status,
       message: Array.isArray(message) ? message : [message],
       timestamp: new Date().toISOString(),
+      requestId: request.requestId,
     });
+  }
+
+  private formatUniqueConstraintMessage(
+    exception: PrismaClientKnownRequestError,
+  ): string {
+    const target = exception.meta?.target;
+    if (Array.isArray(target) && target.length > 0) {
+      return `${target.join(', ')} มีอยู่ในระบบแล้ว`;
+    }
+    return 'ข้อมูลนี้มีอยู่ในระบบแล้ว';
   }
 
   private logException(
@@ -84,7 +99,8 @@ export class GlobalExceptionFilter implements ExceptionFilter {
   ): void {
     const formattedMessage =
       typeof message === 'string' ? message : JSON.stringify(message);
-    const logLine = `[${request.method} ${request.url}] ${status} - ${formattedMessage}`;
+    const requestId = request.requestId ?? '-';
+    const logLine = `[${requestId}] [${request.method} ${request.url}] ${status} - ${formattedMessage}`;
 
     if (status >= 500) {
       this.logger.error(

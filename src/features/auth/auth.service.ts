@@ -1,10 +1,15 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { comparePassword } from './hash-password';
+import { comparePassword, hashPassword } from './hash-password';
 import { PrismaService } from 'src/common/prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { AuthenticatedUser } from 'src/common/types/jwt-payload.type';
 import {
   generateRefreshToken,
@@ -98,6 +103,44 @@ export class AuthService {
 
   getProfile(user: AuthenticatedUser) {
     return this.toAuthUser(user);
+  }
+
+  async changePassword(
+    userId: string,
+    changePasswordDto: ChangePasswordDto,
+  ): Promise<{ message: string }> {
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, isActive: true, deleted_at: null },
+      select: { id: true, password: true },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    const isCurrentPasswordValid = await comparePassword(
+      changePasswordDto.current_password,
+      user.password,
+    );
+
+    if (!isCurrentPasswordValid) {
+      throw new BadRequestException('Current password is incorrect');
+    }
+
+    const passwordHash = await hashPassword(changePasswordDto.new_password);
+
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: userId },
+        data: { password: passwordHash },
+      }),
+      this.prisma.refreshToken.updateMany({
+        where: { userId, revoked_at: null },
+        data: { revoked_at: new Date() },
+      }),
+    ]);
+
+    return { message: 'Password changed successfully' };
   }
 
   private async validateUser(email: string, plainPassword: string) {

@@ -1,8 +1,10 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Post } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { ZodSerializerDto } from 'nestjs-zod';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import {
   AuthResponseDto,
   AuthUserResponseDto,
@@ -17,6 +19,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('login')
   @ZodSerializerDto(AuthResponseDto)
   login(@Body() loginDto: LoginDto) {
@@ -24,6 +27,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('refresh')
   @ZodSerializerDto(AuthResponseDto)
   refresh(@Body() refreshTokenDto: RefreshTokenDto) {
@@ -41,5 +45,13 @@ export class AuthController {
   @ZodSerializerDto(AuthUserResponseDto)
   getProfile(@CurrentUser() user: AuthenticatedUser) {
     return this.authService.getProfile(user);
+  }
+
+  @Patch('change-password')
+  changePassword(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() changePasswordDto: ChangePasswordDto,
+  ) {
+    return this.authService.changePassword(user.id, changePasswordDto);
   }
 }

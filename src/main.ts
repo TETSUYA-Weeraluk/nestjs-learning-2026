@@ -10,6 +10,9 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
   const httpLogger = new Logger('HTTP');
+  const apiPrefix = configService.getOrThrow<string>('api.prefix');
+
+  app.setGlobalPrefix(apiPrefix);
 
   app.enableCors({
     origin: configService.getOrThrow<string[]>('cors.origins'),
@@ -23,8 +26,9 @@ async function bootstrap() {
 
     res.on('finish', () => {
       const duration = Date.now() - start;
+      const requestId = req.requestId ?? '-';
       httpLogger.log(
-        `${method} ${originalUrl} ${res.statusCode} - ${duration}ms`,
+        `[${requestId}] ${method} ${originalUrl} ${res.statusCode} - ${duration}ms`,
       );
     });
 
@@ -45,5 +49,9 @@ async function bootstrap() {
 
   const port = configService.getOrThrow<number>('port');
   await app.listen(port);
+
+  httpLogger.log(
+    `Application running on port ${port} with prefix /${apiPrefix}`,
+  );
 }
 void bootstrap();

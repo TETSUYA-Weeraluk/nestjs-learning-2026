@@ -7,6 +7,13 @@ export default () => {
   return {
     nodeEnv,
     port: parseInt(process.env.PORT ?? '5555', 10),
+    api: {
+      prefix: process.env.API_PREFIX ?? 'api/v1',
+    },
+    throttle: {
+      ttl: parseInt(process.env.THROTTLE_TTL ?? '60000', 10),
+      limit: parseInt(process.env.THROTTLE_LIMIT ?? '100', 10),
+    },
     cors: {
       origins: parseCorsOrigins(process.env.CORS_ORIGIN, nodeEnv),
       credentials: true,

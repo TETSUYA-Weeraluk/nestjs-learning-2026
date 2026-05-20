@@ -7,7 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/client';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { ZodValidationException } from 'nestjs-zod';
 import { ZodError } from 'zod/v3';
 
@@ -31,6 +31,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
   catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
+    const request = ctx.getRequest<Request>();
     const response = ctx.getResponse<Response>();
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
@@ -63,20 +64,36 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         message = 'ไม่พบข้อมูลที่ต้องการ หรือข้อมูลนี้ถูกลบไปแล้ว';
       } else {
         message = `Database error: ${exception.code}`;
-        this.logger.error(
-          `[Prisma Error] ${exception.code}: ${exception.message}`,
-        );
       }
-    } else {
-      this.logger.error(
-        exception instanceof Error ? exception.stack : exception,
-      );
     }
+
+    this.logException(request, status, message, exception);
 
     response.status(status).json({
       statusCode: status,
       message: Array.isArray(message) ? message : [message],
       timestamp: new Date().toISOString(),
     });
+  }
+
+  private logException(
+    request: Request,
+    status: number,
+    message: FilterMessageType,
+    exception: unknown,
+  ): void {
+    const formattedMessage =
+      typeof message === 'string' ? message : JSON.stringify(message);
+    const logLine = `[${request.method} ${request.url}] ${status} - ${formattedMessage}`;
+
+    if (status >= 500) {
+      this.logger.error(
+        logLine,
+        exception instanceof Error ? exception.stack : undefined,
+      );
+      return;
+    }
+
+    this.logger.warn(logLine);
   }
 }

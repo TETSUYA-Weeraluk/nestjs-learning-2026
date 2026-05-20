@@ -328,7 +328,20 @@ npx prisma db push
 
 # generate client หลังแก้ schema
 npx prisma generate
+
+# ใส่ข้อมูลตัวอย่าง (ผู้ใช้ 5 คน รวม ADMIN สำหรับ dev)
+pnpm run db:seed
 ```
+
+หลัง seed สามารถ login ได้ทันที (รันซ้ำได้ — จะลบแล้วสร้างผู้ใช้ชุดเดิมใหม่):
+
+| Email | Password | Role |
+|-------|----------|------|
+| `tetsuya@test.com` | `tetsuya` | ADMIN |
+| `john.doe@example.com` | `password123` | USER |
+| `jane.smith@example.com` | `password123` | MANAGER |
+| `alex.wong@example.com` | `password123` | USER |
+| `maria.garcia@example.com` | `password123` | USER |
 
 ### 5. Run Application
 
@@ -364,7 +377,7 @@ pnpm run start:prod
 ```bash
 curl -X POST http://localhost:5555/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email": "user@example.com", "password": "password123"}'
+  -d '{"email": "tetsuya@test.com", "password": "tetsuya"}'
 ```
 
 ```json

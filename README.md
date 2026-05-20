@@ -2,6 +2,29 @@
 
 REST API สำหรับเรียนรู้ NestJS แบบ production-ready ใช้ Feature-based module, Prisma ORM, JWT Authentication พร้อม Refresh Token และ Role-Based Access Control (RBAC)
 
+เอกสารนี้ออกแบบให้ทั้งคนที่คุ้น NestJS และคนที่เพิ่งเริ่ม — มีส่วนอธิบาย **Request Lifecycle**, **การทำงานของ Auth**, และ **โครงสร้างโปรเจกต์** แยกไว้ชัดเจน
+
+---
+
+## สารบัญ
+
+- [Tech Stack](#tech-stack)
+- [Features](#features)
+- [สำหรับผู้เริ่มต้น NestJS](#สำหรับผู้เริ่มต้น-nestjs)
+- [Request Lifecycle](#request-lifecycle-ลำดับการทำงานของ-request)
+- [Authentication & Authorization Flow](#authentication--authorization-flow)
+- [Project Structure](#project-structure)
+- [Getting Started](#getting-started)
+- [API Reference](#api-reference)
+- [Decorators](#decorators)
+- [Error Response](#error-response)
+- [Database Schema](#database-schema)
+- [Environment Variables](#environment-variables-reference)
+- [Prisma Commands](#prisma-commands)
+- [Scripts](#scripts)
+
+---
+
 ## Tech Stack
 
 | หมวด | เทคโนโลยี |
@@ -14,52 +37,249 @@ REST API สำหรับเรียนรู้ NestJS แบบ production-
 | API Docs | Swagger (`/api`) |
 | Security | Helmet |
 
+---
+
 ## Features
 
 - **Authentication** — Login, Refresh Token (rotation), Logout
 - **Authorization** — Global JWT Guard + Role Guard (`USER`, `ADMIN`, `MANAGER`)
 - **Public API** — Decorator `@Public()` สำหรับ route ที่ไม่ต้อง auth
-- **User Management** — Register, CRUD, Soft delete, Pagination
+- **User Management** — Register, CRUD, Soft delete, Pagination + Search
 - **Global Exception Filter** — Error response รูปแบบเดียวกันทั้ง API
+- **HTTP Request Logging** — log method, path, status, duration
 - **Docker** — PostgreSQL ผ่าน Docker Compose
+
+---
+
+## สำหรับผู้เริ่มต้น NestJS
+
+### NestJS คืออะไร?
+
+NestJS เป็น **Node.js framework** ที่ใช้โครงสร้างแบบ **Module → Controller → Service**:
+
+| ชั้น | หน้าที่ | ตัวอย่างในโปรเจกต์ |
+|------|---------|-------------------|
+| **Module** | รวมส่วนที่เกี่ยวข้อง (DI container) | `AuthModule`, `UserModule` |
+| **Controller** | รับ HTTP request, เรียก service, ส่ง response | `AuthController`, `UserController` |
+| **Service** | Business logic, คุยกับ database | `AuthService`, `UserService` |
+| **Provider** | class ที่ inject ได้ (service, guard, strategy) | `PrismaService`, `JwtStrategy` |
+
+### Dependency Injection (DI)
+
+Nest สร้าง instance ให้และ **inject** เข้า constructor อัตโนมัติ:
+
+```typescript
+@Injectable()
+export class UserService {
+  constructor(private readonly prisma: PrismaService) {}
+}
+```
+
+ไม่ต้อง `new PrismaService()` เอง — Nest จัดการให้
+
+### Global vs Route-level
+
+ใน `app.module.ts` มีการตั้งค่าแบบ **global** (มีผลทุก route):
+
+- `JwtAuthGuard` — ทุก route ต้องมี JWT ยกเว้น `@Public()`
+- `ZodValidationPipe` — validate body/query
+- `GlobalExceptionFilter` — จับ error ทั้งหมด
+
+### แผนภาพ Module
+
+```
+AppModule
+├── ConfigModule (global)
+├── PrismaModule (global) ──► PrismaService
+├── AuthModule
+│   ├── AuthController
+│   ├── AuthService
+│   └── JwtStrategy
+└── UserModule
+    ├── UserController
+    └── UserService ──► ใช้ PrismaService
+```
+
+---
+
+## Request Lifecycle (ลำดับการทำงานของ Request)
+
+เมื่อ client ส่ง HTTP request เข้ามา NestJS ประมวลผลตามลำดับนี้ (จาก [NestJS Lifecycle](https://docs.nestjs.com/faq/request-lifecycle)):
+
+```
+1. Middleware          (เช่น helmet, HTTP logger ใน main.ts)
+        ↓
+2. Guards              (JwtAuthGuard → RolesGuard ถ้ามี)
+        ↓
+3. Interceptors (ก่อน) (ZodSerializerInterceptor)
+        ↓
+4. Pipes               (ZodValidationPipe — validate input)
+        ↓
+5. Controller Handler  (@Body, @Param, @CurrentUser, ...)
+        ↓
+6. Interceptors (หลัง)
+        ↓
+7. Response ออกไป
+```
+
+### ลำดับ Guard หลายตัว
+
+| ลำดับ | Guard | ลงทะเบียนที่ |
+|-------|-------|--------------|
+| 1 | `JwtAuthGuard` | `APP_GUARD` ใน `app.module.ts` (Global) |
+| 2 | `RolesGuard` | `@Auth(...roles)` บน route เฉพาะ |
+
+**Global Guard รันก่อน Route Guard เสมอ** — ดังนั้น JWT ต้องผ่านก่อน แล้วค่อยเช็ค role
+
+### ตัวอย่าง: `GET /auth/me`
+
+```
+Client ส่ง Authorization: Bearer <access_token>
+    ↓
+JwtAuthGuard
+    → Passport อ่าน JWT จาก header
+    → verify signature + expiry
+    → เรียก JwtStrategy.validate(payload)  ← Passport เรียกให้เอง (ไม่มีในโค้ดเรา)
+    → query user จาก DB ด้วย payload.sub
+    → ใส่ผลลัพธ์ลง request.user
+    ↓
+getProfile(@CurrentUser() user)
+    → อ่าน request.user ที่ guard เตรียมไว้แล้ว
+    ↓
+Response JSON
+```
+
+### `validate()` ถูกเรียกเมื่อไหร่?
+
+`JwtStrategy.validate()` **ไม่ได้ถูกเรียกจาก controller โดยตรง** แต่ถูกเรียกโดย **Passport** ภายใน `JwtAuthGuard`:
+
+```
+JwtAuthGuard (extends PassportAuthGuard('jwt'))
+    → passport.authenticate('jwt')
+    → passport-jwt verify token → ได้ payload object
+    → JwtStrategy.validate(payload)
+    → return value → request.user
+```
+
+`payload` คือข้อมูลที่ถอดจาก JWT (สร้างตอน login ด้วย `jwtService.signAsync({ sub, email, role })`)
+
+---
+
+## Authentication & Authorization Flow
+
+### Token คู่
+
+| Token | อายุ | เก็บที่ไหน | ใช้ทำอะไร |
+|-------|------|------------|-----------|
+| **access_token** | สั้น (default `1h`) | Client เก็บเอง | ส่งใน header `Authorization: Bearer ...` ทุก protected API |
+| **refresh_token** | ยาว (default `7d`) | Client เก็บเอง | ใช้กับ `/auth/refresh` และ `/auth/logout` เท่านั้น |
+
+Refresh token ถูก **hash (SHA-256)** ก่อนเก็บใน DB — ไม่เก็บ plain text
+
+### Flow สรุป
+
+```
+Login     → access_token + refresh_token
+Refresh   → token คู่ใหม่ + revoke refresh เก่า (rotation)
+Logout    → revoke refresh_token ใน DB
+```
+
+### Sequence: Login → เรียก Protected API
+
+```mermaid
+sequenceDiagram
+  participant C as Client
+  participant AC as AuthController
+  participant AS as AuthService
+  participant DB as PostgreSQL
+  participant G as JwtAuthGuard
+  participant S as JwtStrategy
+
+  C->>AC: POST /auth/login
+  AC->>AS: login()
+  AS->>DB: validate user + create RefreshToken
+  AS-->>C: access_token + refresh_token
+
+  C->>G: GET /auth/me (Bearer access_token)
+  G->>S: validate(payload)
+  S->>DB: find user by id
+  S-->>G: AuthenticatedUser → request.user
+  G-->>C: profile JSON
+```
+
+### Role (RBAC)
+
+| Role | ตัวอย่างสิทธิ์ในโปรเจกต์ |
+|------|-------------------------|
+| `USER` | ผู้ใช้ทั่วไป |
+| `MANAGER` | ดูรายการ user (`GET /user`) |
+| `ADMIN` | ดูรายการ user (`GET /user`) |
+
+Route ที่ใส่ `@Auth(ADMIN, MANAGER)` ต้อง **login แล้ว** และ **role ตรง** มิฉะนั้นได้ `403 Forbidden`
+
+---
 
 ## Project Structure
 
 ```
 src/
-├── auth/                    # Authentication (login, refresh, logout)
-│   ├── dto/
-│   ├── strategies/          # Passport JWT Strategy
-│   ├── auth.controller.ts
-│   ├── auth.service.ts
-│   └── auth.module.ts
-├── common/
-│   ├── config/              # Configuration, Exception Filter
-│   ├── decorators/          # @Public(), @Auth(), @CurrentUser()
-│   ├── dto/                 # Shared DTOs (pagination)
-│   ├── guard/               # JwtAuthGuard, RolesGuard
-│   ├── prisma/              # PrismaService (Global)
-│   ├── schemas/             # Zod base schemas
-│   ├── types/
-│   └── utils/
+├── main.ts                      # Bootstrap: helmet, Swagger, HTTP logger
+├── app.module.ts                # Root module + global providers
+├── app.controller.ts              # GET / (health/hello)
+│
+├── auth/
+│   ├── auth.module.ts           # JWT + Passport setup
+│   ├── auth.controller.ts       # /auth/*
+│   ├── auth.service.ts          # login, refresh, logout logic
+│   ├── hash-password.ts         # bcrypt hash/compare
+│   ├── refresh-token.util.ts    # generate + hash refresh token
+│   ├── strategies/
+│   │   └── jwt.strategy.ts      # verify JWT → load user → request.user
+│   └── dto/
+│
 ├── features/
-│   ├── user/                # User feature module
-│   └── post/                # Post feature module (stub)
-├── generated/prisma/        # Prisma Client (auto-generated)
-├── app.module.ts
-└── main.ts
+│   └── user/
+│       ├── user.module.ts
+│       ├── user.controller.ts   # /user/*
+│       ├── user.service.ts      # register, CRUD, pagination
+│       └── dto/
+│
+├── common/
+│   ├── config/
+│   │   ├── configuration.ts     # env → config object
+│   │   └── http-exception.filter.ts
+│   ├── decorators/
+│   │   ├── public.decorator.ts  # @Public()
+│   │   ├── auth.decorator.ts    # @Auth(...roles)
+│   │   └── current-user.decorator.ts
+│   ├── guard/
+│   │   ├── jwtAuthGuard.guard.ts
+│   │   └── roles.guard.ts
+│   ├── prisma/
+│   │   ├── prisma.module.ts     # @Global()
+│   │   └── prisma.service.ts
+│   ├── dto/                     # pagination, paginated response
+│   ├── schemas/                 # Zod base schemas
+│   ├── types/                   # JwtPayload, AuthenticatedUser
+│   └── utils/
+│       └── prisma-paginate.util.ts
+│
+└── generated/prisma/            # Prisma Client (auto-generated — ห้ามแก้มือ)
+
 prisma/
 ├── schema.prisma
 └── migrations/
 ```
 
-## Prerequisites
+---
+
+## Getting Started
+
+### Prerequisites
 
 - [Node.js](https://nodejs.org/) >= 20
 - [pnpm](https://pnpm.io/)
 - [Docker](https://www.docker.com/) (สำหรับ PostgreSQL)
-
-## Getting Started
 
 ### 1. Clone & Install
 
@@ -71,7 +291,7 @@ pnpm install
 
 ### 2. Environment Variables
 
-สร้างไฟล์ `.env` จาก template ด้านล่าง:
+สร้างไฟล์ `.env` ที่ root โปรเจกต์:
 
 ```env
 # Database
@@ -83,7 +303,7 @@ DB_HOST="localhost"
 DB_PORT="5432"
 
 # JWT
-JWT_SECRET=your-super-secret-key
+JWT_SECRET=your-super-secret-key-change-in-production
 JWT_EXPIRES_IN=1h
 JWT_REFRESH_EXPIRES_IN=7d
 
@@ -100,11 +320,14 @@ docker compose up -d
 ### 4. Database Migration
 
 ```bash
-# ใช้ migration (แนะนำสำหรับ production)
+# ใช้ migration (แนะนำ)
 npx prisma migrate dev
 
-# หรือ sync schema โดยตรง (development)
+# หรือ sync schema โดยตรง (development เท่านั้น)
 npx prisma db push
+
+# generate client หลังแก้ schema
+npx prisma generate
 ```
 
 ### 5. Run Application
@@ -118,44 +341,23 @@ pnpm run build
 pnpm run start:prod
 ```
 
-Server จะรันที่ `http://localhost:5555`
+| URL | คำอธิบาย |
+|-----|----------|
+| `http://localhost:5555` | API base |
+| `http://localhost:5555/api` | Swagger UI |
 
-Swagger UI: `http://localhost:5555/api`
+---
 
-## Scripts
+## API Reference
 
-| คำสั่ง | คำอธิบาย |
-|--------|----------|
-| `pnpm run start:dev` | รัน dev server (hot reload) |
-| `pnpm run build` | Build โปรเจกต์ |
-| `pnpm run start:prod` | รัน production build |
-| `pnpm run lint` | ตรวจ ESLint |
-| `pnpm run test` | Unit tests |
-| `pnpm run test:e2e` | E2E tests |
-| `pnpm run test:cov` | Test coverage |
-
-## Authentication
-
-### Flow
-
-```
-Login  → access_token (สั้น) + refresh_token (ยาว)
-Refresh → แลก token คู่ใหม่ (rotation — revoke token เก่าทันที)
-Logout → revoke refresh_token
-```
-
-Refresh token ถูก hash (SHA-256) ก่อนเก็บใน database ไม่เก็บ plain text
-
-### Endpoints
+### Auth
 
 | Method | Path | Auth | คำอธิบาย |
 |--------|------|------|----------|
 | `POST` | `/auth/login` | Public | Login |
-| `POST` | `/auth/refresh` | Public | Refresh token |
+| `POST` | `/auth/refresh` | Public | Refresh token (rotation) |
 | `POST` | `/auth/logout` | Public | Logout (revoke refresh token) |
 | `GET` | `/auth/me` | Bearer | ดู profile ตัวเอง |
-
-### ตัวอย่าง
 
 **Login**
 
@@ -202,49 +404,84 @@ curl -X POST http://localhost:5555/auth/logout \
   -d '{"refresh_token": "<refresh_token>"}'
 ```
 
-## API Endpoints
-
 ### User
 
 | Method | Path | Auth | Role | คำอธิบาย |
 |--------|------|------|------|----------|
-| `POST` | `/user` | Public | — | Register user |
+| `POST` | `/user` | Public | — | Register (สร้าง user + address) |
 | `GET` | `/user` | Bearer | ADMIN, MANAGER | List users (pagination) |
 | `GET` | `/user/:id` | Bearer | — | Get user by ID |
 | `PATCH` | `/user/:id` | Bearer | — | Update user |
-| `DELETE` | `/user/:id` | Bearer | — | Soft delete user |
+| `DELETE` | `/user/:id` | Bearer | — | Soft delete |
 
-### Pagination Query Params
+> `GET/PATCH/DELETE /user/:id` ต้อง login แต่ **ยังไม่จำกัด role** — ใคร login ก็เรียกได้ (ออกแบบสำหรับเรียนรู้; production อาจเพิ่ม `@Auth()`)
+
+**Register**
+
+```bash
+curl -X POST http://localhost:5555/user \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "new@example.com",
+    "password": "password123",
+    "first_name": "Jane",
+    "last_name": "Doe",
+    "address": {
+      "address": "123 Main St",
+      "city": "Bangkok",
+      "state": "Bangkok",
+      "zip": "10110",
+      "country": "Thailand"
+    }
+  }'
+```
+
+### Pagination (`GET /user`)
 
 ```
-GET /user?page=1&limit=10&search=john&sortBy=created_at&sortOrder=desc
+GET /user?page=1&limit=10&search=john&sort=created_at&order=desc
 ```
 
 | Param | Type | Default | คำอธิบาย |
 |-------|------|---------|----------|
-| `page` | number | `1` | หน้าที่ต้องการ |
-| `limit` | number | `10` | จำนวนต่อหน้า |
-| `search` | string | — | ค้นหาใน first_name, last_name, email |
-| `sortBy` | string | `created_at` | ฟิลด์ที่ sort ได้ |
-| `sortOrder` | `asc` \| `desc` | `desc` | ทิศทาง sort |
+| `page` | number | — | หน้าที่ต้องการ (ไม่ส่ง = คืนทั้งหมดไม่มี meta) |
+| `limit` | number | `10` | จำนวนต่อหน้า (เมื่อมี `page`) |
+| `search` | string | — | ค้นหาใน `first_name`, `last_name`, `email` |
+| `sort` | string | `created_at` | ฟิลด์: `first_name`, `last_name`, `email`, `created_at` |
+| `order` | `asc` \| `desc` | `desc` | ทิศทาง sort |
+
+Response แบบมี pagination:
+
+```json
+{
+  "data": [...],
+  "count": 100,
+  "page": 1,
+  "limit": 10,
+  "totalPages": 10
+}
+```
+
+---
 
 ## Decorators
 
 ### `@Public()`
 
-ข้าม JWT Guard สำหรับ route ที่ไม่ต้อง authentication
+ข้าม `JwtAuthGuard` — route ไม่ต้องส่ง Bearer token
 
 ```typescript
 @Public()
-@Get('health')
-healthCheck() {
-  return { status: 'ok' };
-}
+@Post('login')
+login() { ... }
 ```
 
 ### `@Auth(...roles)`
 
-กำหนด role ที่เข้าถึงได้ (ใช้ร่วมกับ Global JWT Guard)
+ใช้ร่วมกับ Global JWT Guard:
+
+1. ต้อง login (JWT ผ่าน)
+2. `RolesGuard` เช็ค `request.user.role`
 
 ```typescript
 @Auth(USER_ROLE.ADMIN, USER_ROLE.MANAGER)
@@ -254,27 +491,52 @@ findAll() { ... }
 
 ### `@CurrentUser()`
 
-ดึง user จาก JWT payload ใน request
+ดึง `request.user` ที่ `JwtStrategy.validate()` ใส่ไว้แล้ว — **ไม่ได้ decode JWT ใน decorator**
 
 ```typescript
 @Get('me')
 getProfile(@CurrentUser() user: AuthenticatedUser) {
-  return user;
+  return this.authService.getProfile(user);
 }
 ```
+
+---
+
+## Error Response
+
+ทุก error ผ่าน `GlobalExceptionFilter` ได้รูปแบบ:
+
+```json
+{
+  "statusCode": 400,
+  "message": ["รายละเอียด error"],
+  "timestamp": "2026-05-20T10:00:00.000Z"
+}
+```
+
+| สถานการณ์ | status | หมายเหตุ |
+|-----------|--------|----------|
+| Validation (Zod) | 400 | `message` เป็น array ของ `{ field, error }` |
+| Unauthorized | 401 | JWT ไม่ถูก / หมดอายุ |
+| Forbidden | 403 | role ไม่ตรง |
+| Not found (Prisma P2025) | 404 | ข้อความภาษาไทย |
+| Server error | 500 | log ใน server |
+
+---
 
 ## Database Schema
 
 ```
 User ──┬── Address (1:1)
-       ├── Post (1:N)
        └── RefreshToken (1:N)
 
 USER_ROLE: USER | ADMIN | MANAGER
 ```
 
-- User ใช้ **soft delete** ผ่านฟิลด์ `deleted_at`
-- Password hash ด้วย **bcrypt** (salt rounds: 10)
+- **Soft delete** — `DELETE /user/:id` ตั้ง `deleted_at` + `isActive: false` ไม่ลบ row จริง
+- **Password** — hash ด้วย bcrypt (10 salt rounds)
+
+---
 
 ## Environment Variables Reference
 
@@ -284,25 +546,54 @@ USER_ROLE: USER | ADMIN | MANAGER
 | `DB_USER` | — | — | ใช้กับ Docker Compose |
 | `DB_PASSWORD` | — | — | ใช้กับ Docker Compose |
 | `DB_NAME` | — | — | ใช้กับ Docker Compose |
-| `DB_HOST` | — | `localhost` | Database host |
+| `DB_HOST` | — | `localhost` | Database host (ใน configuration) |
 | `DB_PORT` | — | `5432` | Database port |
-| `JWT_SECRET` | ✅ | — | Secret สำหรับ sign JWT |
+| `JWT_SECRET` | ✅ | `change-me-in-production` | Secret สำหรับ sign/verify JWT |
 | `JWT_EXPIRES_IN` | — | `1h` | อายุ access token |
-| `JWT_REFRESH_EXPIRES_IN` | — | `7d` | อายุ refresh token |
+| `JWT_REFRESH_EXPIRES_IN` | — | `7d` | อายุ refresh token (`7d`, `24h`, `30m`) |
 | `PORT` | — | `5555` | Port ของ API server |
+
+---
 
 ## Prisma Commands
 
 ```bash
-# เปิด Prisma Studio (GUI จัดการ DB)
+# GUI จัดการ database
 npx prisma studio
 
 # สร้าง migration ใหม่
 npx prisma migrate dev --name <migration_name>
 
-# Generate Prisma Client หลังแก้ schema
+# Generate client หลังแก้ schema
 npx prisma generate
 ```
+
+---
+
+## Scripts
+
+| คำสั่ง | คำอธิบาย |
+|--------|----------|
+| `pnpm run start:dev` | Dev server (hot reload) |
+| `pnpm run build` | Build โปรเจกต์ |
+| `pnpm run start:prod` | รัน production build |
+| `pnpm run lint` | ESLint |
+| `pnpm run test` | Unit tests |
+| `pnpm run test:e2e` | E2E tests |
+| `pnpm run test:cov` | Test coverage |
+
+---
+
+## แนวทางพัฒนาเพิ่ม Feature ใหม่
+
+1. แก้ `prisma/schema.prisma` แล้ว `npx prisma migrate dev`
+2. สร้างโฟลเดอร์ `src/features/<feature>/` (module, controller, service, dto)
+3. import module ใน `app.module.ts`
+4. ใช้ `PrismaService` inject ใน service (ได้จาก global `PrismaModule`)
+5. กำหนด `@Public()` / `@Auth()` ตามความต้องการ
+6. สร้าง Zod DTO ด้วย `createZodDto` + `@ZodSerializerDto` สำหรับ response
+
+---
 
 ## License
 

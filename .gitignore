@@ -14,10 +14,6 @@ yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 
-# Tests
-coverage/
-.nyc_output/
-
 # Environment (อย่า commit secret)
 .env
 .env.local

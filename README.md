@@ -24,6 +24,7 @@ REST API สำหรับเรียนรู้ NestJS แบบ production-
 - [Environment Variables](#environment-variables-reference)
 - [Prisma Commands](#prisma-commands)
 - [Scripts](#scripts)
+- [เพิ่ม Testing (Optional)](#เพิ่ม-testing-optional)
 
 ---
 
@@ -289,6 +290,8 @@ prisma/
 ├── seed.ts
 └── migrations/
 ```
+
+> **หมายเหตุ:** โปรเจกต์นี้ไม่รวม test suite ในตัว — ไม่มีโฟลเดอร์ `test/` หรือไฟล์ `*.spec.ts` ถ้า fork ไปแล้วต้องการเพิ่ม test ดูขั้นตอนที่ [เพิ่ม Testing (Optional)](#เพิ่ม-testing-optional)
 
 ---
 
@@ -613,7 +616,7 @@ USER_ROLE: USER | ADMIN | MANAGER
 | `API_PREFIX` | — | `api/v1` | Global route prefix |
 | `THROTTLE_TTL` | — | `60000` | Rate limit window (ms) |
 | `THROTTLE_LIMIT` | — | `100` | Max requests ต่อ window (ทั่วไป) |
-| `NODE_ENV` | — | `development` | `development` \| `production` \| `test` |
+| `NODE_ENV` | — | `development` | `development` \| `production` \| `test` (ใช้ตอนรัน Jest) |
 | `CORS_ORIGIN` | production | — | Allowed origins คั่นด้วย comma (บังคับใน production) |
 
 ---
@@ -645,12 +648,197 @@ npx prisma generate
 | `pnpm run db:migrate` | Apply migrations (`prisma migrate deploy`) |
 | `pnpm run db:seed` | ใส่ข้อมูลตัวอย่าง (`prisma db seed`) |
 | `pnpm run start:dev` | Dev server (hot reload) |
+| `pnpm run start:debug` | Dev server พร้อม Node.js debugger |
+| `pnpm run start` | รัน server (ไม่ watch) |
 | `pnpm run build` | Build โปรเจกต์ |
 | `pnpm run start:prod` | รัน production build |
 | `pnpm run lint` | ESLint |
-| `pnpm run test` | Unit tests |
-| `pnpm run test:e2e` | E2E tests |
-| `pnpm run test:cov` | Test coverage |
+| `pnpm run format` | Format โค้ดด้วย Prettier (`src/**/*.ts`) |
+
+---
+
+## เพิ่ม Testing (Optional)
+
+Template นี้ตั้งใจ **ไม่ใส่ test suite** เพื่อให้โฟกัสเรียนรู้ NestJS core ก่อน แต่โค้ดรองรับ `NODE_ENV=test` อยู่แล้วใน `env.schema.ts` — ถ้า fork ไปแล้วอยากเพิ่ม test ทำตามขั้นตอนนี้ได้
+
+### ภาพรวม
+
+| ประเภท | ไฟล์ | ใช้ทดสอบอะไร | ต้องมี DB จริงไหม |
+|--------|------|---------------|------------------|
+| **Unit test** | `src/**/*.spec.ts` | Service, Controller แยกส่วน (mock dependency) | ไม่ต้อง |
+| **E2E test** | `test/**/*.e2e-spec.ts` | HTTP request ผ่าน app ทั้งก้อน | ต้อง (PostgreSQL) |
+
+### 1. ติดตั้ง dependencies
+
+```bash
+pnpm add -D jest ts-jest @types/jest @nestjs/testing supertest @types/supertest
+```
+
+### 2. เพิ่ม scripts และ Jest config ใน `package.json`
+
+เพิ่มใน `scripts`:
+
+```json
+"test": "jest",
+"test:watch": "jest --watch",
+"test:cov": "jest --coverage",
+"test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
+"test:e2e": "jest --config ./test/jest-e2e.json"
+```
+
+เพิ่ม block `jest` ท้ายไฟล์ (unit test — สแกน `src/**/*.spec.ts`):
+
+```json
+"jest": {
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": "src",
+  "testRegex": ".*\\.spec\\.ts$",
+  "transform": {
+    "^.+\\.(t|j)s$": "ts-jest"
+  },
+  "collectCoverageFrom": ["**/*.(t|j)s"],
+  "coverageDirectory": "../coverage",
+  "testEnvironment": "node",
+  "setupFiles": ["<rootDir>/../test/setup-env.ts"],
+  "moduleNameMapper": {
+    "^src/(.*)$": "<rootDir>/$1"
+  }
+}
+```
+
+ปรับ `format` / `lint` ให้รวมโฟลเดอร์ test:
+
+```json
+"format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+"lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix"
+```
+
+### 3. สร้างไฟล์ config สำหรับ test
+
+**`test/setup-env.ts`** — โหลด env ก่อนรัน test (ค่า default สำหรับ local):
+
+```typescript
+import { config } from 'dotenv';
+import { resolve } from 'path';
+
+config({ path: resolve(__dirname, '../.env') });
+
+process.env.NODE_ENV ??= 'test';
+process.env.DATABASE_URL ??=
+  'postgresql://admin:admin@localhost:5432/nestjs2026-learning';
+process.env.JWT_SECRET ??= 'test-jwt-secret-min-16-chars';
+```
+
+> แก้ `DATABASE_URL` ให้ตรงกับ `.env` / Docker Compose ของโปรเจกต์ fork แนะนำใช้ **database แยก** สำหรับ test (เช่น `nestjs2026_test`) เพื่อไม่ชน seed ของ dev
+
+**`test/jest-e2e.json`** — config แยกสำหรับ E2E:
+
+```json
+{
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": ".",
+  "setupFiles": ["<rootDir>/setup-env.ts"],
+  "testEnvironment": "node",
+  "testRegex": ".e2e-spec.ts$",
+  "transform": {
+    "^.+\\.(t|j)s$": "ts-jest"
+  }
+}
+```
+
+### 4. สร้าง test ตัวอย่าง
+
+**Unit test** — วางคู่กับไฟล์ที่ทดสอบ เช่น `src/app.controller.spec.ts`:
+
+```typescript
+import { Test, TestingModule } from '@nestjs/testing';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
+
+describe('AppController', () => {
+  let appController: AppController;
+
+  beforeEach(async () => {
+    const app: TestingModule = await Test.createTestingModule({
+      controllers: [AppController],
+      providers: [AppService],
+    }).compile();
+
+    appController = app.get<AppController>(AppController);
+  });
+
+  it('GET / should return hello message', () => {
+    expect(appController.getHello()).toBe('Hello World!');
+  });
+});
+```
+
+**E2E test** — `test/app.e2e-spec.ts` (ต้องเปิด PostgreSQL + migrate ก่อน):
+
+```typescript
+import { Test, TestingModule } from '@nestjs/testing';
+import { INestApplication } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import request from 'supertest';
+import { App } from 'supertest/types';
+import { AppModule } from '../src/app.module';
+
+describe('AppController (e2e)', () => {
+  let app: INestApplication<App>;
+
+  beforeEach(async () => {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+
+    app = moduleFixture.createNestApplication();
+    const configService = app.get(ConfigService);
+    app.setGlobalPrefix(configService.getOrThrow<string>('api.prefix'));
+    await app.init();
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  it('GET /api/v1', () => {
+    return request(app.getHttpServer())
+      .get('/api/v1')
+      .expect(200)
+      .expect('Hello World!');
+  });
+});
+```
+
+### 5. ปรับ config อื่น ๆ
+
+| ไฟล์ | สิ่งที่เพิ่ม |
+|------|------------|
+| `eslint.config.mjs` | `...globals.jest` ใน `languageOptions.globals` |
+| `tsconfig.build.json` | `"exclude": ["node_modules", "test", "dist", "**/*spec.ts"]` |
+| `.gitignore` | `coverage/` และ `.nyc_output/` |
+
+### 6. รัน test
+
+```bash
+# Unit tests (ไม่ต้องมี DB)
+pnpm run test
+pnpm run test:watch
+pnpm run test:cov
+
+# E2E (ต้องมี PostgreSQL พร้อม migrate แล้ว)
+pnpm run db:up
+pnpm run db:migrate
+pnpm run test:e2e
+```
+
+### แนวทางเขียน test ในโปรเจกต์นี้
+
+- **Unit test สำหรับ Service** — mock `PrismaService` ด้วย `useValue` แทนการต่อ DB จริง
+- **Unit test สำหรับ Auth/User** — mock `JwtService`, `ConfigService` ตาม dependency ของ service นั้น
+- **E2E ที่ต้อง auth** — login ผ่าน `POST /api/v1/auth/login` แล้วส่ง `Authorization: Bearer <token>` ใน request ถัดไป
+- **E2E ที่ซับซ้อนขึ้น** — อาจแยก helper bootstrap จาก `main.ts` (CORS, helmet, validation pipe) ให้ E2E ใช้ setup เดียวกับ production
+- **Nest CLI** — สร้าง spec อัตโนมัติได้ด้วย `nest g service user --spec` หรือ `nest g controller user --spec`
 
 ---
 

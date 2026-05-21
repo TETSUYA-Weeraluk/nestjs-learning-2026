@@ -12,6 +12,7 @@ import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { AdminUpdateUserDto } from './dto/update-user.dto';
 import { ZodSerializerDto } from 'nestjs-zod';
+import { AuthResponseDto } from 'src/features/auth/dto/auth-response.dto';
 import {
   FindAllUserResponseDto,
   UserResponseDto,
@@ -31,7 +32,7 @@ export class UserController {
   @Public()
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post()
-  @ZodSerializerDto(UserResponseDto)
+  @ZodSerializerDto(AuthResponseDto)
   create(@Body() createUserDto: CreateUserDto) {
     return this.userService.register(createUserDto);
   }

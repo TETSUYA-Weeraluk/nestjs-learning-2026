@@ -2,6 +2,7 @@ import { ForbiddenException, Injectable } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { AdminUpdateUserInput } from './dto/update-user.dto';
 import { PrismaService } from 'src/common/prisma/prisma.service';
+import { AuthService } from 'src/features/auth/auth.service';
 import { hashPassword } from 'src/features/auth/hash-password';
 import { PaginationQueryDto } from 'src/common/dto/pagination-query.dto';
 import { prismaPaginate } from 'src/common/utils/prisma-paginate.util';
@@ -11,7 +12,10 @@ import { Prisma } from 'src/generated/prisma/client';
 
 @Injectable()
 export class UserService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly authService: AuthService,
+  ) {}
 
   async register(createUserDto: CreateUserDto) {
     const passwordHash = await hashPassword(createUserDto.password);
@@ -28,12 +32,16 @@ export class UserService {
         },
         password: passwordHash,
       },
-      include: {
-        address: true,
-      },
     });
 
-    return user;
+    return this.authService.issueTokensForUser({
+      id: user.id,
+      email: user.email,
+      first_name: user.first_name,
+      last_name: user.last_name,
+      role: user.role,
+      isActive: user.isActive,
+    });
   }
 
   async findAll(query: PaginationQueryDto) {

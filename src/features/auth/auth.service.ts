@@ -27,6 +27,10 @@ export class AuthService {
 
   async login(loginDto: LoginDto) {
     const user = await this.validateUser(loginDto.email, loginDto.password);
+    return this.issueTokensForUser(user);
+  }
+
+  async issueTokensForUser(user: AuthenticatedUser) {
     const accessToken = await this.signAccessToken(user);
     const refreshToken = await this.createRefreshToken(user.id);
 

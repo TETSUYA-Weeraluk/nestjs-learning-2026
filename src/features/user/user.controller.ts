@@ -7,6 +7,7 @@ import {
   Param,
   Delete,
   Query,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -46,14 +47,17 @@ export class UserController {
 
   @Get(':id')
   @ZodSerializerDto(UserResponseDto)
-  findOne(@Param('id') id: string, @CurrentUser() actor: AuthenticatedUser) {
+  findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
     return this.userService.findOne(id, actor);
   }
 
   @Patch(':id')
   @ZodSerializerDto(UserResponseDto)
   update(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() updateUserDto: AdminUpdateUserDto,
     @CurrentUser() actor: AuthenticatedUser,
   ) {
@@ -63,7 +67,7 @@ export class UserController {
   @Auth(USER_ROLE.ADMIN)
   @Delete(':id')
   @ZodSerializerDto(UserResponseDto)
-  remove(@Param('id') id: string) {
+  remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.userService.remove(id);
   }
 }

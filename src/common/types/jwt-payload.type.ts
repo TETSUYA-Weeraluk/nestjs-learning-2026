@@ -13,4 +13,11 @@ export interface AuthenticatedUser {
   last_name: string;
   role: USER_ROLE;
   isActive: boolean;
+  address?: {
+    address?: string;
+    city?: string;
+    state?: string;
+    zip?: string;
+    country?: string;
+  };
 }

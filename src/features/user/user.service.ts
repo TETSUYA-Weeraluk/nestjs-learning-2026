@@ -32,6 +32,9 @@ export class UserService {
         },
         password: passwordHash,
       },
+      include: {
+        address: true,
+      },
     });
 
     return this.authService.issueTokensForUser({
@@ -41,6 +44,13 @@ export class UserService {
       last_name: user.last_name,
       role: user.role,
       isActive: user.isActive,
+      address: {
+        address: user.address?.address ?? '',
+        city: user.address?.city ?? '',
+        state: user.address?.state ?? '',
+        zip: user.address?.zip ?? '',
+        country: user.address?.country ?? '',
+      },
     });
   }
 

@@ -55,6 +55,7 @@ export class AuthService {
             role: true,
             isActive: true,
             deleted_at: true,
+            address: true,
           },
         },
       },
@@ -77,6 +78,13 @@ export class AuthService {
       last_name: storedToken.user.last_name,
       role: storedToken.user.role,
       isActive: storedToken.user.isActive,
+      address: {
+        address: storedToken.user.address?.address ?? '',
+        city: storedToken.user.address?.city ?? '',
+        state: storedToken.user.address?.state ?? '',
+        zip: storedToken.user.address?.zip ?? '',
+        country: storedToken.user.address?.country ?? '',
+      },
     };
 
     const accessToken = await this.signAccessToken(user);
@@ -236,6 +244,7 @@ export class AuthService {
       first_name: user.first_name,
       last_name: user.last_name,
       role: user.role,
+      address: user.address,
     };
   }
 }

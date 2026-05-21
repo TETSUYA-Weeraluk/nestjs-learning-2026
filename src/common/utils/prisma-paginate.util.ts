@@ -23,7 +23,7 @@ export async function prismaPaginate<T>(
   modelDelegate: PrismaModelDelegate<T>,
   query: PaginationQueryDto,
   options: PaginateOptions,
-): Promise<PaginatedResponse<T> | T[]> {
+): Promise<PaginatedResponse<T>> {
   const { page, limit, search, sort, order } = query;
   const {
     searchFields,
@@ -71,17 +71,16 @@ export async function prismaPaginate<T>(
     }),
   ]);
 
-  const totalPages = take ? Math.ceil(totalCount / take) : 1;
-
-  if (!page) {
-    return data;
-  }
+  const resolvedLimit = page ? (limit ?? 10) : null;
+  const totalPages = resolvedLimit ? Math.ceil(totalCount / resolvedLimit) : 1;
 
   return {
     data,
-    count: totalCount,
-    page: page ?? null,
-    limit: page ? (limit ?? 10) : null,
-    totalPages,
+    meta: {
+      count: totalCount,
+      page: page ?? null,
+      limit: resolvedLimit,
+      totalPages,
+    },
   };
 }

@@ -14,6 +14,7 @@ import { JwtAuthGuard } from './common/guard/jwtAuthGuard.guard';
 import { RolesGuard } from './common/guard/roles.guard';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
+import { SuccessResponseInterceptor } from './common/interceptors/success-response.interceptor';
 
 @Module({
   imports: [
@@ -46,6 +47,10 @@ import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
     {
       provide: APP_PIPE,
       useClass: ZodValidationPipe,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: SuccessResponseInterceptor,
     },
     {
       provide: APP_INTERCEPTOR,

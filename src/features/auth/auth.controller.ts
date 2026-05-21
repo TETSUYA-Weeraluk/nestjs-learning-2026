@@ -48,6 +48,7 @@ export class AuthController {
   }
 
   @Patch('change-password')
+  @ZodSerializerDto(LogoutResponseDto)
   changePassword(
     @CurrentUser() user: AuthenticatedUser,
     @Body() changePasswordDto: ChangePasswordDto,

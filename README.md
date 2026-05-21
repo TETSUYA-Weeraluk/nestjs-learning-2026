@@ -17,6 +17,7 @@ REST API สำหรับเรียนรู้ NestJS แบบ production-
 - [Project Structure](#project-structure)
 - [Getting Started](#getting-started)
 - [API Reference](#api-reference)
+- [Success Response](#success-response)
 - [Rate Limiting](#rate-limiting)
 - [Decorators](#decorators)
 - [Error Response](#error-response)
@@ -49,6 +50,7 @@ REST API สำหรับเรียนรู้ NestJS แบบ production-
 - **Register ปลอดภัย** — role เป็น `USER` เสมอ (ห้ามส่ง `role` ใน body), email ซ้ำ → `409` จาก DB unique constraint
 - **Public API** — Decorator `@Public()` สำหรับ route ที่ไม่ต้อง auth
 - **User Management** — Register, CRUD, Soft delete, Pagination + Search
+- **Consistent Success Response** — ทุก endpoint สำเร็จห่อด้วย `{ success, data, meta? }` ผ่าน global interceptor
 - **Global Exception Filter** — Error response รูปแบบเดียวกันทั้ง API
 - **HTTP Request Logging** — log method, path, status, duration
 - **Docker** — PostgreSQL ผ่าน Docker Compose
@@ -95,6 +97,8 @@ export class UserService {
 - `ThrottlerGuard` — rate limit ทุก route (override ได้ที่ controller)
 - `JwtAuthGuard` — ทุก route ต้องมี JWT ยกเว้น `@Public()`
 - `ZodValidationPipe` — validate body/query
+- `ZodSerializerInterceptor` — serialize response ตาม Zod schema ของแต่ละ route
+- `SuccessResponseInterceptor` — ห่อ success response เป็น `{ success, data, meta? }`
 - `GlobalExceptionFilter` — จับ error ทั้งหมด (รวม Prisma P2002/P2025)
 
 ### แผนภาพ Module
@@ -124,16 +128,18 @@ AppModule
         ↓
 2. Guards              (ThrottlerGuard → JwtAuthGuard → RolesGuard ถ้ามี)
         ↓
-3. Interceptors (ก่อน) (ZodSerializerInterceptor)
+3. Interceptors (ก่อน) (ZodSerializerInterceptor → SuccessResponseInterceptor)
         ↓
 4. Pipes               (ZodValidationPipe — validate input)
         ↓
 5. Controller Handler  (@Body, @Param, @CurrentUser, ...)
         ↓
-6. Interceptors (หลัง)
+6. Interceptors (หลัง) (SuccessResponseInterceptor → ZodSerializerInterceptor)
         ↓
 7. Response ออกไป (header X-Request-Id)
 ```
+
+**ลำดับ Interceptor ตอน response:** `ZodSerializerInterceptor` serialize ข้อมูลจาก handler ก่อน จากนั้น `SuccessResponseInterceptor` ห่อเป็น `{ success, data, meta? }`
 
 ### ลำดับ Guard หลายตัว
 
@@ -193,9 +199,9 @@ Refresh token ถูก **hash (SHA-256)** ก่อนเก็บใน DB —
 ### Flow สรุป
 
 ```
-Login     → access_token + refresh_token
+Login     → { success, data: { access_token, refresh_token, user } }
 Refresh   → token คู่ใหม่ + revoke refresh เก่า (rotation)
-Logout    → revoke refresh_token ใน DB
+Logout    → { success, data: { message } } + revoke refresh_token ใน DB
 Change password → อัปเดต password + revoke refresh tokens ทั้งหมดของ user
 ```
 
@@ -213,13 +219,13 @@ sequenceDiagram
   C->>AC: POST /api/v1/auth/login
   AC->>AS: login()
   AS->>DB: validate user + create RefreshToken
-  AS-->>C: access_token + refresh_token
+  AS-->>C: { success, data: { access_token, refresh_token, user } }
 
   C->>G: GET /api/v1/auth/me (Bearer access_token)
   G->>S: validate(payload)
   S->>DB: find user by id
   S-->>G: AuthenticatedUser → request.user
-  G-->>C: profile JSON
+  G-->>C: { success, data: profile }
 ```
 
 ### Role (RBAC)
@@ -274,6 +280,8 @@ src/
 │   ├── guard/
 │   │   ├── jwtAuthGuard.guard.ts
 │   │   └── roles.guard.ts
+│   ├── interceptors/
+│   │   └── success-response.interceptor.ts  # ห่อ { success, data, meta? }
 │   ├── prisma/
 │   │   ├── prisma.module.ts       # @Global()
 │   │   └── prisma.service.ts      # $connect / $disconnect lifecycle
@@ -396,14 +404,17 @@ curl -X POST http://localhost:5555/api/v1/auth/login \
 
 ```json
 {
-  "access_token": "eyJhbG...",
-  "refresh_token": "a1b2c3...",
-  "user": {
-    "id": "uuid",
-    "email": "user@example.com",
-    "first_name": "John",
-    "last_name": "Doe",
-    "role": "USER"
+  "success": true,
+  "data": {
+    "access_token": "eyJhbG...",
+    "refresh_token": "a1b2c3...",
+    "user": {
+      "id": "uuid",
+      "email": "user@example.com",
+      "first_name": "John",
+      "last_name": "Doe",
+      "role": "USER"
+    }
   }
 }
 ```
@@ -413,6 +424,19 @@ curl -X POST http://localhost:5555/api/v1/auth/login \
 ```bash
 curl http://localhost:5555/api/v1/auth/me \
   -H "Authorization: Bearer <access_token>"
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "email": "user@example.com",
+    "first_name": "John",
+    "last_name": "Doe",
+    "role": "USER"
+  }
+}
 ```
 
 **Refresh Token**
@@ -438,6 +462,15 @@ curl -X PATCH http://localhost:5555/api/v1/auth/change-password \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{"current_password": "tetsuya", "new_password": "newpassword123"}'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "message": "Password changed successfully"
+  }
+}
 ```
 
 ### User
@@ -474,6 +507,31 @@ curl -X POST http://localhost:5555/api/v1/user \
   }'
 ```
 
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "email": "new@example.com",
+    "first_name": "Jane",
+    "last_name": "Doe",
+    "role": "USER",
+    "isActive": true,
+    "created_at": "2026-05-20T10:00:00.000Z",
+    "updated_at": "2026-05-20T10:00:00.000Z",
+    "address": {
+      "id": "uuid",
+      "address": "123 Main St",
+      "city": "Bangkok",
+      "state": "Bangkok",
+      "zip": "10110",
+      "country": "Thailand",
+      "updated_at": "2026-05-20T10:00:00.000Z"
+    }
+  }
+}
+```
+
 ### Pagination (`GET /api/v1/user`)
 
 ```
@@ -482,23 +540,117 @@ GET /api/v1/user?page=1&limit=10&search=john&sort=created_at&order=desc
 
 | Param | Type | Default | คำอธิบาย |
 |-------|------|---------|----------|
-| `page` | number | — | หน้าที่ต้องการ (ไม่ส่ง = คืนทั้งหมดไม่มี meta) |
-| `limit` | number | `10` | จำนวนต่อหน้า (เมื่อมี `page`) |
+| `page` | number | — | หน้าที่ต้องการ (ไม่ส่ง = คืนทุกรายการ, `meta.page` เป็น `null`) |
+| `limit` | number | `10` | จำนวนต่อหน้า (ใช้เมื่อมี `page` เท่านั้น) |
 | `search` | string | — | ค้นหาใน `first_name`, `last_name`, `email` |
 | `sort` | string | `created_at` | ฟิลด์: `first_name`, `last_name`, `email`, `created_at` |
 | `order` | `asc` \| `desc` | `desc` | ทิศทาง sort |
 
-Response แบบมี pagination:
+Response แบบมี pagination (`?page=1`):
 
 ```json
 {
-  "data": [...],
-  "count": 100,
-  "page": 1,
-  "limit": 10,
-  "totalPages": 10
+  "success": true,
+  "data": [
+    {
+      "id": "uuid",
+      "email": "john@example.com",
+      "first_name": "John",
+      "last_name": "Doe",
+      "role": "USER",
+      "isActive": true,
+      "created_at": "2026-05-20T10:00:00.000Z",
+      "updated_at": "2026-05-20T10:00:00.000Z",
+      "address": { "id": "...", "address": "...", "city": "...", "state": "...", "zip": "...", "country": "...", "updated_at": "..." }
+    }
+  ],
+  "meta": {
+    "count": 100,
+    "page": 1,
+    "limit": 10,
+    "totalPages": 10
+  }
 }
 ```
+
+Response แบบไม่ส่ง `page` (คืนทุกรายการ):
+
+```json
+{
+  "success": true,
+  "data": [ ... ],
+  "meta": {
+    "count": 5,
+    "page": null,
+    "limit": null,
+    "totalPages": 1
+  }
+}
+```
+
+---
+
+## Success Response
+
+ทุก request ที่สำเร็จ (HTTP 2xx) ผ่าน `SuccessResponseInterceptor` ได้รูปแบบเดียวกัน:
+
+### Endpoint ทั่วไป (object / message)
+
+```json
+{
+  "success": true,
+  "data": { ... }
+}
+```
+
+ตัวอย่าง:
+
+| Endpoint | `data` ที่ได้ |
+|----------|---------------|
+| `GET /api/v1` | `"Hello World!"` |
+| `GET /api/v1/auth/me` | `{ id, email, first_name, last_name, role }` |
+| `GET /api/v1/user/:id` | User object พร้อม `address` |
+| `POST /api/v1/auth/login` | `{ access_token, refresh_token, user }` |
+| `POST /api/v1/auth/logout` | `{ message: "Logged out successfully" }` |
+| `PATCH /api/v1/auth/change-password` | `{ message: "Password changed successfully" }` |
+
+### List endpoint (pagination)
+
+```json
+{
+  "success": true,
+  "data": [ ... ],
+  "meta": {
+    "count": 100,
+    "page": 1,
+    "limit": 10,
+    "totalPages": 10
+  }
+}
+```
+
+| ฟิลด์ใน `meta` | คำอธิบาย |
+|----------------|----------|
+| `count` | จำนวน record ทั้งหมดที่ match filter |
+| `page` | หน้าปัจจุบัน (`null` เมื่อไม่ส่ง `page`) |
+| `limit` | จำนวนต่อหน้า (`null` เมื่อไม่ส่ง `page`) |
+| `totalPages` | จำนวนหน้าทั้งหมด |
+
+### ฝั่ง Frontend
+
+```typescript
+const res = await fetch('/api/v1/user?page=1', {
+  headers: { Authorization: `Bearer ${accessToken}` },
+});
+const body = await res.json();
+
+if (body.success) {
+  const users = body.data;       // array ของ users
+  const { count, page, limit, totalPages } = body.meta ?? {};
+}
+```
+
+Error response **ไม่มี** `success` — ใช้ `statusCode` แทน (ดู [Error Response](#error-response))
 
 ---
 
@@ -557,7 +709,7 @@ getProfile(@CurrentUser() user: AuthenticatedUser) {
 
 ## Error Response
 
-ทุก error ผ่าน `GlobalExceptionFilter` ได้รูปแบบ:
+ทุก error ผ่าน `GlobalExceptionFilter` ได้รูปแบบ (**ไม่มี** `success` — ต่างจาก [Success Response](#success-response)):
 
 ```json
 {
@@ -805,7 +957,10 @@ describe('AppController (e2e)', () => {
     return request(app.getHttpServer())
       .get('/api/v1')
       .expect(200)
-      .expect('Hello World!');
+      .expect({
+        success: true,
+        data: 'Hello World!',
+      });
   });
 });
 ```
@@ -836,7 +991,7 @@ pnpm run test:e2e
 
 - **Unit test สำหรับ Service** — mock `PrismaService` ด้วย `useValue` แทนการต่อ DB จริง
 - **Unit test สำหรับ Auth/User** — mock `JwtService`, `ConfigService` ตาม dependency ของ service นั้น
-- **E2E ที่ต้อง auth** — login ผ่าน `POST /api/v1/auth/login` แล้วส่ง `Authorization: Bearer <token>` ใน request ถัดไป
+- **E2E ที่ต้อง auth** — login ผ่าน `POST /api/v1/auth/login` แล้วอ่าน `body.data.access_token` ส่งใน `Authorization: Bearer <token>`
 - **E2E ที่ซับซ้อนขึ้น** — อาจแยก helper bootstrap จาก `main.ts` (CORS, helmet, validation pipe) ให้ E2E ใช้ setup เดียวกับ production
 - **Nest CLI** — สร้าง spec อัตโนมัติได้ด้วย `nest g service user --spec` หรือ `nest g controller user --spec`
 
@@ -850,7 +1005,8 @@ pnpm run test:e2e
 4. ใช้ `PrismaService` inject ใน service (ได้จาก global `PrismaModule`)
 5. กำหนด `@Public()` / `@Auth()` / `@Throttle()` ตามความต้องการ
 6. สร้าง Zod DTO ด้วย `createZodDto` + `@ZodSerializerDto` สำหรับ response
-7. Route ใหม่จะอยู่ภายใต้ global prefix `/api/v1` อัตโนมัติ (ยกเว้น Swagger ที่ `/api`)
+7. List endpoint ใช้ `prismaPaginate` — คืน `{ data, meta }` แล้ว interceptor จะห่อเป็น `{ success, data, meta }` ให้อัตโนมัติ
+8. Route ใหม่จะอยู่ภายใต้ global prefix `/api/v1` อัตโนมัติ (ยกเว้น Swagger ที่ `/api`)
 
 ---
 
